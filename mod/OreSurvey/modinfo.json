@@ -1,0 +1,11 @@
+{
+  "type": "code",
+  "modid": "oresurvey",
+  "name": "Ore Survey",
+  "version": "0.1.0",
+  "side": "Server",
+  "requiredOnClient": false,
+  "authors": ["conrad"],
+  "description": "Research tool: pregenerates an area and dumps ore deposits, ore blocks, solidity and prospecting readings.",
+  "dependencies": { "game": "1.22.0", "survival": "" }
+}

@@ -1,0 +1,14 @@
+[project]
+name = "vintage-ore"
+version = "0.1.0"
+description = "Vintage Story ore deposit / prospecting research"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy",
+    "pandas",
+    "scipy",
+    "matplotlib",
+]
+
+[tool.uv]
+package = false

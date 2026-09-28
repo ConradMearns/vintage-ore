@@ -1,0 +1,8 @@
+ref/decomp/
+data/
+*.vcdbs
+bin/
+obj/
+__pycache__/
+.venv/
+uv.lock.bak
