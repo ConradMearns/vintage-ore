@@ -115,8 +115,8 @@ overlaid with true deposit locations.
       recorded deposit. Chunk-level correlation between density reading and ore blocks: copper 0.69, tin 0.56.
 - [x] "Unique deposit" = connected ore body (26-adjacent, same ore type), 5+ blocks. Shapes: pancake / clump / speck.
 - [x] First 2048² world (seed 1, rate 1.0): 5.5 min, 350 MB sqlite, 5.3M ore blocks, 68k bodies
-- [x] Vertical-shaft simulator (`analysis/sim.py`), 16 strategies × 18 ores × 16,384 shafts
-- [x] Report page (`report/index.html` + `analysis/report_data.py`): https://claude.ai/artifact/799A3FxNgkTvGwZ6epqSyg
+- [x] First vertical-shaft simulator (16 strategies × 18 ores × 16,384 shafts); superseded by `analysis/miner.py`
+- [x] Report page (`report/index.html`, data from `analysis/report_data.py`; the data files are large and gitignored, so regenerate them to view it)
 - [x] Three 4096² worlds (seeds 1–3, rate 1.0): ~30 min in parallel, 59M ore blocks, ~300k deposits
 - [x] Realistic miner (`analysis/miner.py`): count-only direction finding, depth limits, side arms; 33 strategies
 - [x] Region-border ore map shift for oreMapScale≠1 ores is a game bug (MapLayerOre.GenLayer truncates xCoord/num)
@@ -124,6 +124,11 @@ overlaid with true deposit locations.
 - [x] Level finding: edge search (binary search up the dug shaft for the last height that counts ore; top = that − R)
 - [x] Bayesian direction finding (`analysis/bayes.py`): correct but only ±5% vs the routine; counts carry little direction info
 - [x] Surface prospecting (`analysis/surface.py`): read every ~100 blocks, then compass-climb at 64
+- [x] Animations of the guide: `anim-opus`, `anim-sonnet`, and the merged `anim-sonnet-fixed` (see the top-level README)
+- [ ] **Re-run direction finding with the game's word buckets.** The propick reports node-search counts as words
+      (trace <10, small <20, medium <40, large <80, very large <160, huge), not numbers. `analysis/miner.py`
+      steers tunnels with exact counts, so its direction-finding results are optimistic. Edge search only needs
+      "any ore or none" and is unaffected.
 - [ ] In-game helper (edge search + climb + spacing as a checklist/calculator)
 
 ## Usage

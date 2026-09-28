@@ -11,3 +11,4 @@ report/data_*.json
 report/spacing.json
 report/surface.json
 report/aim.json
+.claude/
