@@ -55,11 +55,14 @@ def classify(b: pd.DataFrame) -> pd.Series:
 
 def compute(s: Survey):
     blocks = s.ore_blocks()
+    # categoricals keep these columns as numpy codes (small, and shared cleanly by forked workers)
+    for c in ("ore", "grade", "rock"):
+        blocks[c] = blocks[c].astype("category")
     h = s.heightmap()
     blocks["surface"] = h[blocks.z - s.z0, blocks.x - s.x0].astype(np.int32)
     body = np.empty(len(blocks), dtype=np.int64)
     next_id = 0
-    for ore, idx in blocks.groupby("ore").indices.items():
+    for ore, idx in blocks.groupby("ore", observed=True).indices.items():
         sub = blocks.iloc[idx]
         lab = label_bodies(sub.x.to_numpy(), sub.y.to_numpy(), sub.z.to_numpy())
         body[idx] = lab + next_id

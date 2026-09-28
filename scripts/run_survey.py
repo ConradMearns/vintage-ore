@@ -26,6 +26,7 @@ def main():
     ap.add_argument("--spacing", type=int, default=4, help="propick reading grid spacing")
     ap.add_argument("--playstyle", default="surviveandbuild")
     ap.add_argument("--set", action="append", default=[], help="world config override key=value")
+    ap.add_argument("--port", type=int, default=42420)
     ap.add_argument("--keep-world", action="store_true", help="keep the .vcdbs save afterwards")
     args = ap.parse_args()
 
@@ -45,7 +46,7 @@ def main():
                    cwd=GAME, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     cfg_path = server_dir / "serverconfig.json"
     cfg = json.loads(cfg_path.read_text())
-    cfg["Port"] = 42420 + (abs(hash(args.name)) % 1000)
+    cfg["Port"] = args.port
     cfg["AdvertiseServer"] = False
     cfg["Upnp"] = False
     cfg["WorldConfig"].update({
