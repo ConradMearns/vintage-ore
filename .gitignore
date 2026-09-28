@@ -8,3 +8,4 @@ __pycache__/
 uv.lock.bak
 report/data.json
 report/data_*.json
+report/spacing.json

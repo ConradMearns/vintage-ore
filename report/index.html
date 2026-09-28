@@ -320,6 +320,20 @@ td:first-child { font-family: var(--font-body); color: var(--ink); }
     </details>
   </section>
 
+  <section class="block" aria-labelledby="h-space">
+    <div class="block-head">
+      <span class="eyebrow">Next shaft</span>
+      <h2 id="h-space">How far apart to dig shafts</h2>
+      <p>Grids of 4×4 shafts dug one after another at a fixed spacing, each ore with its recommended method (R6 every 13, stopping at its best depth). Anything an earlier shaft mined is gone for the later ones. The chart shows how much ore a later shaft still gets, as a share of what the same shaft finds on untouched ground.</p>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h3>Ore a later shaft still gets, by distance to its neighbours</h3><span class="note" id="space-scope"></span></div>
+      <div class="legend" id="spacelegend"></div>
+      <div class="chart" id="space"></div>
+      <p style="font-size:13.5px" id="space-note"></p>
+    </div>
+  </section>
+
   <section class="block" aria-labelledby="h-curve">
     <div class="block-head">
       <span class="eyebrow">Diminishing returns</span>
@@ -461,6 +475,14 @@ function renderTiles() {
       <span class="v">${top.max_depth ? `Stop at ${top.max_depth} blocks` : "Dig to bedrock"}</span>
       <span class="d">${top.max_depth ? `That is ${top.max_depth} rope ladders below the surface, the shallowest stop within 2% of the best. <span class="num">${fmt1(stratValue(top))}</span> ore per 100 durability, against <span class="num">${fmt1(stratValue(full))}</span> going all the way down.`
         : `Every stopping depth tested does worse; the deep part of the shaft still pays for itself (<span class="num">${fmt1(stratValue(full))}</span> ore per 100 durability).`}</span></div>`);
+  }
+
+  const so = SP && SP.ores[state.ore], sk = so && spacingPick(so);
+  if (sk) {
+    const l = sk.o.all[sk.d].later;
+    tiles.push(`<div class="tile"><span class="k">Next shaft</span>
+      <span class="v">${sk.d} blocks away</span>
+      <span class="d">Closest spacing where a new shaft still gets 95%+ of a fresh shaft's ore (<span class="num">${fmt1(l.rate)}</span> ore per 100 durability). Walk this far before the next shaft.</span></div>`);
   }
 
   const cal = P.calibration;
@@ -925,12 +947,59 @@ function renderStatic() {
   ].map(s => `<li>${s}</li>`).join("");
 }
 
-function renderAll() {
-  renderTiles(); renderMap(); renderDepth(); renderShapes(); renderCalibration(); renderStrategies(); renderCurves(); renderKeep();
+/* ---------- shaft spacing ---------- */
+function spacingPick(o) {
+  const ds = Object.keys(o.all).map(Number).sort((a, b) => a - b);
+  const d = ds.find(d => o.all[d].later.yield_ratio >= 0.95);
+  return d == null ? null : { d, o };
+}
+function renderSpacing() {
+  const el = document.getElementById("space"), note = document.getElementById("space-note");
+  if (!SP) { el.innerHTML = ""; return; }
+  const ores = Object.keys(SP.ores), sel = SP.ores[state.ore];
+  const W = widthOf(el), H = 300, m = { t: 14, r: 110, b: 40, l: 48 };
+  const svg = svgIn(el, W, H);
+  const x = d3.scaleLinear().domain([0, 128]).range([m.l, W - m.r]);
+  const y = d3.scaleLinear().domain([0, 1]).range([H - m.b, m.t]);
+  svg.append("g").attr("class", "gridl").attr("transform", `translate(${m.l},0)`).call(d3.axisLeft(y).ticks(5).tickSize(-(W - m.l - m.r)).tickFormat(""));
+  svg.append("g").attr("class", "axis").attr("transform", `translate(${m.l},0)`).call(d3.axisLeft(y).ticks(5, "%").tickSizeOuter(0));
+  svg.append("g").attr("class", "axis").attr("transform", `translate(0,${H - m.b})`).call(d3.axisBottom(x).tickValues([0, 13, 24, 32, 48, 64, 80, 96, 128]).tickSizeOuter(0));
+  svg.append("text").attr("class", "lbl").attr("x", W - m.r).attr("y", H - 6).attr("text-anchor", "end").text("blocks between shafts →");
+  svg.append("line").attr("x1", m.l).attr("x2", W - m.r).attr("y1", y(0.95)).attr("y2", y(0.95)).attr("stroke", css("--axis")).attr("stroke-width", 1);
+  svg.append("text").attr("class", "val").attr("x", m.l + 6).attr("y", y(0.95) - 5).text("95%");
+  const order = ores.filter(o => o !== state.ore).concat(sel ? [state.ore] : []);
+  const ends = [];
+  order.forEach(ore => {
+    const o = SP.ores[ore], on = ore === state.ore;
+    const pts = Object.keys(o.all).map(Number).sort((a, b) => a - b).map(d => [d, o.all[d].later.yield_ratio, o.all[d].later]);
+    const col = on ? css("--s1") : css("--w0");
+    svg.append("path").attr("d", d3.line().x(p => x(p[0])).y(p => y(p[1]))(pts)).attr("fill", "none").attr("stroke", col).attr("stroke-width", on ? 2.5 : 1.5);
+    pts.forEach(p => {
+      if (on) svg.append("circle").attr("cx", x(p[0])).attr("cy", y(p[1])).attr("r", 4).attr("fill", col).attr("stroke", css("--surface")).attr("stroke-width", 2);
+      svg.append("circle").attr("cx", x(p[0])).attr("cy", y(p[1])).attr("r", 10).attr("fill", "transparent")
+        .on("mousemove", ev => showTip(ev, `<div class="t">${oreName(ore)}, ${p[0]} blocks apart</div><div class="m">later shafts get ${pct(p[1])} of a fresh shaft's ore</div><div class="m">${fmt1(p[2].rate)} ore / 100 durability (fresh: ${fmt1(p[2].solo_rate)})</div>`))
+        .on("mouseleave", hideTip);
+    });
+    const last = pts[pts.length - 1];
+    ends.push({ ore, on, x: x(last[0]), y: y(last[1]) });
+  });
+  const labelled = ends.filter(e => e.on);
+  labelled.forEach(e => svg.append("text").attr("class", "lbl-strong").attr("x", e.x + 8).attr("y", e.y + 4).text(oreName(e.ore)));
+  document.getElementById("spacelegend").innerHTML = `<span><i class="line" style="background:${css("--s1")}"></i>${sel ? oreName(state.ore) : "Selected ore (not simulated)"}</span><span><i class="line" style="background:${css("--w0")}"></i>Other ores: ${ores.filter(o => o !== state.ore).map(oreName).join(", ")}</span>`;
+  document.getElementById("space-scope").textContent = "4×4 grids, 3 worlds";
+  if (sel) {
+    const pk = spacingPick(sel);
+    note.textContent = pk ? `${oreName(state.ore)}: put the next shaft at least ${pk.d} blocks away; closer than that it digs through ground the last shaft already cleared. Rule of thumb: 13 (the width of a radius-6 probe cube) plus the width of a large deposit of this ore.` : "";
+  } else note.textContent = `Spacing was simulated for ${ores.map(oreName).join(", ")}. Pick one of those to see its line.`;
 }
 
-fetch("data.json").then(r => r.json()).then(data => {
-  D = data;
+function renderAll() {
+  renderTiles(); renderMap(); renderDepth(); renderShapes(); renderCalibration(); renderStrategies(); renderSpacing(); renderCurves(); renderKeep();
+}
+
+let SP = null;
+Promise.all([fetch("data.json").then(r => r.json()), fetch("spacing.json").then(r => r.ok ? r.json() : null).catch(() => null)]).then(([data, sp]) => {
+  D = data; SP = sp;
   buildFilters(); renderStatic(); renderAll();
   const box = document.getElementById("mapbox");
   box.addEventListener("mousemove", mapHover);
