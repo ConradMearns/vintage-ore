@@ -117,8 +117,11 @@ overlaid with true deposit locations.
 - [x] First 2048² world (seed 1, rate 1.0): 5.5 min, 350 MB sqlite, 5.3M ore blocks, 68k bodies
 - [x] Vertical-shaft simulator (`analysis/sim.py`), 16 strategies × 18 ores × 16,384 shafts
 - [x] Report page (`report/index.html` + `analysis/report_data.py`): https://claude.ai/artifact/799A3FxNgkTvGwZ6epqSyg
-- [ ] Sweep: seeds × globalDepositSpawnRate at 2048², then pool seeds in the report
-- [ ] Strategies still to model: lateral search after a hit (deposits cluster), depth-limited shafts, realistic localisation cost
+- [x] Three 4096² worlds (seeds 1–3, rate 1.0): ~30 min in parallel, 59M ore blocks, ~300k deposits
+- [x] Realistic miner (`analysis/miner.py`): count-only direction finding, depth limits, side arms; 33 strategies
+- [x] Region-border ore map shift for oreMapScale≠1 ores is a game bug (MapLayerOre.GenLayer truncates xCoord/num)
+- [ ] Deposit-rate sweep (globalDepositSpawnRate 0.6 / 1.6)
+- [ ] Better level finding (largest remaining gap to perfect aim)
 
 ## Usage
 ```
