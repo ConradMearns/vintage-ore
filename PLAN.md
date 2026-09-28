@@ -121,7 +121,10 @@ overlaid with true deposit locations.
 - [x] Realistic miner (`analysis/miner.py`): count-only direction finding, depth limits, side arms; 33 strategies
 - [x] Region-border ore map shift for oreMapScale≠1 ores is a game bug (MapLayerOre.GenLayer truncates xCoord/num)
 - [ ] Deposit-rate sweep (globalDepositSpawnRate 0.6 / 1.6)
-- [ ] Better level finding (largest remaining gap to perfect aim)
+- [x] Level finding: edge search (binary search up the dug shaft for the last height that counts ore; top = that − R)
+- [x] Bayesian direction finding (`analysis/bayes.py`): correct but only ±5% vs the routine; counts carry little direction info
+- [x] Surface prospecting (`analysis/surface.py`): read every ~100 blocks, then compass-climb at 64
+- [ ] In-game helper (edge search + climb + spacing as a checklist/calculator)
 
 ## Usage
 ```

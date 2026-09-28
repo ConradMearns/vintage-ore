@@ -265,6 +265,27 @@ td:first-child { font-family: var(--font-body); color: var(--ink); }
     </div>
   </section>
 
+  <section class="block" aria-labelledby="h-surf">
+    <div class="block-head">
+      <span class="eyebrow">Before you dig</span>
+      <h2 id="h-surf">Finding a good spot</h2>
+      <p>A density reading costs 3 durability (three samples a few blocks apart). The simulated prospector walks in a straight line from a random spot, taking a reading every so many blocks, until one reaches the target word. Then they climb: take four compass readings a set distance out and step to the best, while it keeps improving.</p>
+    </div>
+    <div class="two">
+      <div class="panel">
+        <div class="panel-head"><h3>Durability spent on readings to find a patch</h3><span class="note">by blocks between readings</span></div>
+        <div class="legend" id="surflegend"></div>
+        <div class="chart" id="surf"></div>
+        <p style="font-size:13.5px" id="surf-note"></p>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3>Climbing from a “decent” reading</h3><span class="note">compass readings 64 blocks out</span></div>
+        <div class="chart" id="climb"></div>
+        <p style="font-size:13.5px" id="climb-note"></p>
+      </div>
+    </div>
+  </section>
+
   <section class="block" aria-labelledby="h-strat">
     <div class="block-head">
       <span class="eyebrow">Strategies</span>
@@ -281,7 +302,7 @@ td:first-child { font-family: var(--font-body); color: var(--ink); }
     <div class="block-head">
       <span class="eyebrow">Direction finding</span>
       <h2 id="h-dir">Homing in on a hit</h2>
-      <p>A node search tells you how many ore blocks are nearby, not where they are. The simulated player uses this routine, and nothing else, every time a probe finds the target ore:</p>
+      <p>A node search tells you how many ore blocks are nearby, not where they are. But the count is a hard-edged box: a probe sees ore only if it is within R blocks up or down. So the highest probe that still counts ore sits exactly R blocks above the deposit's top, and the shaft above you is already dug, so finding that height costs only probes. The simulated player uses this routine, and nothing else, every time a probe finds the target ore:</p>
     </div>
     <div class="two">
       <div class="panel">
@@ -289,7 +310,7 @@ td:first-child { font-family: var(--font-body); color: var(--ink); }
         <ol class="steps" id="steps"></ol>
       </div>
       <div class="panel">
-        <div class="panel-head"><h3>Cost of not knowing where the ore is</h3><span class="note">ore per 100 durability</span></div>
+        <div class="panel-head"><h3>Aiming methods compared</h3><span class="note">ore per 100 durability</span></div>
         <div class="legend" id="aimlegend"></div>
         <div class="chart" id="aim"></div>
         <p style="font-size:13.5px" id="aim-note"></p>
@@ -455,7 +476,10 @@ function renderTiles() {
   const P = D.per_ore[state.ore], strats = P.strategies;
   const tiles = [];
   const atR = strats.filter(s => s.radius === state.radius && realistic(s) && stratValue(s) != null);
-  const best = atR.slice().sort((a, b) => stratValue(b) - stratValue(a))[0];
+  // Within 2% of the top, prefer the simpler plan: plain probing, then a depth limit, then extras.
+  const extra = t => ({ probe: 0, depth: 1, other: 2, lateral: 3 }[t.family] ?? 4);
+  const topV = d3.max(atR, stratValue);
+  const best = atR.filter(t => stratValue(t) >= topV * 0.98).sort((a, b) => extra(a) - extra(b) || stratValue(b) - stratValue(a))[0];
   const yours = strats.find(s => s.baseline);
   if (best) {
     const bv = stratValue(best), yv = yours ? stratValue(yours) : null;
@@ -477,6 +501,12 @@ function renderTiles() {
         : `Every stopping depth tested does worse; the deep part of the shaft still pays for itself (<span class="num">${fmt1(stratValue(full))}</span> ore per 100 durability).`}</span></div>`);
   }
 
+  const sfo = SURF && SURF.ores[state.ore], cl = sfo && sfo.climb && sfo.climb[64];
+  if (cl && sfo.walk.decent[96] && sfo.walk.decent[96].median_walk) {
+    tiles.push(`<div class="tile"><span class="k">Finding a spot</span>
+      <span class="v">Read every ~100 blocks, then climb</span>
+      <span class="d">A “decent” patch turns up after a median <span class="num">${fmt0(sfo.walk.decent[96].median_walk)}</span> blocks of walking. From there, compass readings 64 blocks out reach “high” <span class="num">${pct(cl.final_word.high)}</span> of the time for about ${fmt0(cl.readings * SURF.reading_cost)} durability.</span></div>`);
+  }
   const so = SP && SP.ores[state.ore], sk = so && spacingPick(so);
   if (sk) {
     const l = sk.o.all[sk.d].later;
@@ -765,12 +795,20 @@ function renderStrategies() {
 
   // direction finding
   document.getElementById("steps").innerHTML = [
-    `<b>Find the level.</b> Probe the shaft wall ${D.model.level_probes.filter(v => v > 0).join(" and ")} blocks above and below the hit (dig down if needed). Work at the count-weighted average height, not the height with the biggest count.`,
+    `<b>Find the top of the ore.</b> Climb back up the shaft and probe the wall to find the highest height where the pick still counts ore: probe halfway between the hit and the last empty probe above it, and keep halving (3–4 probes). The top of the deposit is ${state.radius} blocks below that height. Dig your tunnel with its floor one block under that top.`,
     `<b>Pick a direction.</b> From the shaft at that level, dig a ${D.model.arm}-block tunnel east and one south, probing at each end. Head along whichever count changed most: toward it if it rose, the opposite way if it fell.`,
     `<b>Follow the count.</b> Tunnel ${D.model.arm} blocks at a time and probe. Keep going while the count holds or rises. When it drops, go back to the best spot and try the other axis once.`,
     `<b>Stop when you see ore</b> on a tunnel wall and mine the whole body. Probe again there; if the count is still up, repeat from step 2 (up to 4 bodies).`,
     `<b>Give up</b> after ${D.model.give_up} durability without finding anything, and go back to the shaft.`,
   ].map(t => `<li>${t}</li>`).join("");
+  const A = AIM && AIM.ores[state.ore];
+  if (A) {
+    const colors = { "Weighted-average level": css("--w0"), "Edge search": css("--s1"), "Model-picked direction": css("--s3"), "Perfect aim": css("--w0") };
+    hbars(document.getElementById("aim"), AIM.methods.map(m => ({ label: m, v: A[m], on: true, strong: m === "Edge search", color: colors[m] })), { left: 170 });
+    document.getElementById("aimlegend").innerHTML = "";
+    const e = A["Edge search"], w = A["Weighted-average level"], b = A["Model-picked direction"], o = A["Perfect aim"];
+    document.getElementById("aim-note").textContent = `R6 every 13, ${AIM.shafts} shafts in world 1 that have a reading of this ore. Edge search gets ${pct(e / o)} of what a player with perfect aim would, ${e >= w ? "+" : ""}${pct(e / w - 1)} against the older weighted-average level. A full probabilistic model of deposit shapes (built from other worlds) choosing the direction changes that by ${b >= e ? "+" : ""}${pct(b / e - 1)}: probe counts carry little information about direction, so the simple routine is close to the best you can do without seeing the ore.`;
+  } else {
   const pairs = [[6, 6], [6, 13], [8, 17]].map(([r, sp]) => {
     const real = P.strategies.find(s => s.family === "probe" && s.radius === r && s.spacing === sp);
     const orc = P.strategies.find(s => s.oracle && s.radius === r && s.spacing === sp);
@@ -780,8 +818,9 @@ function renderStrategies() {
   document.getElementById("aimlegend").innerHTML = `<span><i style="background:${css("--w0")}"></i>Perfect aim (knows where the ore is)</span><span><i style="background:${css("--s1")}"></i>This routine</span>`;
   const p6 = pairs.find(p => p.label === "R6 every 13");
   document.getElementById("aim-note").textContent = p6
-    ? `At R6 every 13, the routine gets ${pct(p6.real / p6.orc)} of what a player with perfect aim would. Most of the gap is picking the wrong level: pancakes are about 2 blocks thick and a tunnel only shows ore 1 block away.`
+    ? `At R6 every 13, the routine gets ${pct(p6.real / p6.orc)} of what a player with perfect aim would.`
     : "";
+  }
 
   // depth
   const fr = familyRadius(), full = baseFor(fr);
@@ -947,6 +986,50 @@ function renderStatic() {
   ].map(s => `<li>${s}</li>`).join("");
 }
 
+/* ---------- surface ---------- */
+function renderSurface() {
+  const el = document.getElementById("surf"), el2 = document.getElementById("climb");
+  const O = SURF && SURF.ores[state.ore];
+  if (!O || !O.walk.decent || !Object.values(O.walk.decent).some(v => v.median_walk)) {
+    el.innerHTML = ""; el2.innerHTML = "";
+    document.getElementById("surf-note").textContent = SURF ? `No ${oreName(state.ore).toLowerCase()} patch reached “decent” often enough to measure.` : "";
+    document.getElementById("climb-note").textContent = ""; document.getElementById("surflegend").innerHTML = "";
+    return;
+  }
+  const series = [["decent", "--s1", "“Decent”"], ["high", "--s2", "“High”"]].filter(([t]) => O.walk[t] && Object.values(O.walk[t]).some(v => v.mean_readings));
+  const W = widthOf(el), H = 240, m = { t: 14, r: 16, b: 40, l: 48 };
+  const svg = svgIn(el, W, H);
+  const Ds = SURF.spacings;
+  const x = d3.scalePoint().domain(Ds.map(String)).range([m.l + 12, W - m.r - 12]);
+  const ymax = d3.max(series, ([t]) => d3.max(Ds, D => (O.walk[t][D].mean_readings || 0) * SURF.reading_cost)) || 1;
+  const y = d3.scaleLinear().domain([0, ymax]).nice().range([H - m.b, m.t]);
+  svg.append("g").attr("class", "gridl").attr("transform", `translate(${m.l},0)`).call(d3.axisLeft(y).ticks(4).tickSize(-(W - m.l - m.r)).tickFormat(""));
+  svg.append("g").attr("class", "axis").attr("transform", `translate(${m.l},0)`).call(d3.axisLeft(y).ticks(4).tickSizeOuter(0));
+  svg.append("g").attr("class", "axis").attr("transform", `translate(0,${H - m.b})`).call(d3.axisBottom(x).tickSizeOuter(0));
+  svg.append("text").attr("class", "lbl").attr("x", W - m.r).attr("y", H - 6).attr("text-anchor", "end").text("blocks between readings →");
+  series.forEach(([t, v]) => {
+    const pts = Ds.filter(D => O.walk[t][D].mean_readings).map(D => [D, O.walk[t][D].mean_readings * SURF.reading_cost, O.walk[t][D]]);
+    svg.append("path").attr("d", d3.line().x(p => x(String(p[0]))).y(p => y(p[1]))(pts)).attr("fill", "none").attr("stroke", css(v)).attr("stroke-width", 2);
+    pts.forEach(p => {
+      svg.append("circle").attr("cx", x(String(p[0]))).attr("cy", y(p[1])).attr("r", 4).attr("fill", css(v)).attr("stroke", css("--surface")).attr("stroke-width", 2);
+      svg.append("circle").attr("cx", x(String(p[0]))).attr("cy", y(p[1])).attr("r", 12).attr("fill", "transparent")
+        .on("mousemove", ev => showTip(ev, `<div class="t">“${t}”, a reading every ${p[0]} blocks</div><div class="m">${fmt0(p[2].mean_readings)} readings (${fmt0(p[1])} durability)</div><div class="m">median walk ${fmt0(p[2].median_walk)} blocks</div><div class="m">found within ${fmt0(6000)} blocks: ${pct(p[2].found)}</div>`))
+        .on("mouseleave", hideTip);
+    });
+  });
+  document.getElementById("surflegend").innerHTML = series.map(([, v, l]) => `<span><i class="line" style="background:${css(v)}"></i>${l}</span>`).join("");
+  const d32 = O.walk.decent[32], d96 = O.walk.decent[96], pd = O.patch && O.patch.decent;
+  document.getElementById("surf-note").textContent = `Patches are big, so sparse readings find them almost as fast: “decent” is reached after a median ${fmt0(d96.median_walk)} blocks reading every 96, against ${fmt0(d32.median_walk)} reading every 32, for a third of the durability.` +
+    (pd ? ` A typical “decent” patch covers about ${fmt0(Math.sqrt(pd.median_area_seen))}×${fmt0(Math.sqrt(pd.median_area_seen))} blocks, room for about ${fmt0(pd.shafts_in_median_patch)} shafts at the spacing below.` : "");
+
+  const c = O.climb && O.climb[64];
+  if (!c) { el2.innerHTML = ""; document.getElementById("climb-note").textContent = ""; return; }
+  const rows = [["Still “decent”+", c.final_word.decent], ["Reached “high”+", c.final_word.high], ["Reached “very high+”", c.final_word["very high+"]]];
+  hbars(el2, rows.map(([l, v]) => ({ label: l, v: v * 100, on: true, color: css("--s1") })), { left: 150 });
+  el2.querySelectorAll(".val").forEach(t => t.textContent = t.textContent + "%");
+  document.getElementById("climb-note").textContent = `Climbing costs about ${fmt0(c.readings)} readings (${fmt0(c.readings * SURF.reading_cost)} durability). One shaft at a higher reading returns far more than that; see “How much a reading is worth”.`;
+}
+
 /* ---------- shaft spacing ---------- */
 function spacingPick(o) {
   const ds = Object.keys(o.all).map(Number).sort((a, b) => a - b);
@@ -994,12 +1077,13 @@ function renderSpacing() {
 }
 
 function renderAll() {
-  renderTiles(); renderMap(); renderDepth(); renderShapes(); renderCalibration(); renderStrategies(); renderSpacing(); renderCurves(); renderKeep();
+  renderTiles(); renderMap(); renderDepth(); renderShapes(); renderCalibration(); renderSurface(); renderStrategies(); renderSpacing(); renderCurves(); renderKeep();
 }
 
-let SP = null;
-Promise.all([fetch("data.json").then(r => r.json()), fetch("spacing.json").then(r => r.ok ? r.json() : null).catch(() => null)]).then(([data, sp]) => {
-  D = data; SP = sp;
+let SP = null, SURF = null, AIM = null;
+const opt = f => fetch(f).then(r => r.ok ? r.json() : null).catch(() => null);
+Promise.all([fetch("data.json").then(r => r.json()), opt("spacing.json"), opt("surface.json"), opt("aim.json")]).then(([data, sp, sf, am]) => {
+  D = data; SP = sp; SURF = sf; AIM = am;
   buildFilters(); renderStatic(); renderAll();
   const box = document.getElementById("mapbox");
   box.addEventListener("mousemove", mapHover);

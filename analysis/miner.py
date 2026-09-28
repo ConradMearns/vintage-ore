@@ -40,7 +40,7 @@ class Strategy:
     lateral: int = 0                # after a probe that led to a deposit, dig 4 side arms of this length
     lateral_every: bool = False     # lateral search after every such probe (default: only the first)
     level_probes: tuple = (3, 6, -3, -6)   # shaft offsets probed to find the ore's level
-    level_pick: str = "centroid"    # "max": highest count; "centroid": count-weighted mean level
+    level_pick: str = "edge"        # "max" | "centroid" | "edge" (search up the dug shaft for the last probe height that still counts ore)
     test_arms: int = 2              # 2: test +x/+z and infer the other side; 4: test all four sides
 
     @property
@@ -102,6 +102,7 @@ class Run:
         self.first = None
         self.trace = []
         self.lateral_done = 0
+        self.probes = []          # every node search so far: ((x, y, z), count)
 
     # --- primitives -------------------------------------------------------------------------------
     def mine(self, bodies):
@@ -148,7 +149,9 @@ class Run:
 
     def probe(self, p):
         self.cost += 2
-        return self.idx.count(p, self.st.radius)
+        c = self.idx.count(p, self.st.radius)
+        self.probes.append((tuple(p), c))
+        return c
 
     # --- localisation -----------------------------------------------------------------------------
     def localise(self, p0, c0):
@@ -178,6 +181,9 @@ class Run:
         st, x, z = self.st, self.x, self.z
         y0 = p0[1]
         found = False
+        if st.level_pick == "edge":
+            ys, found = self._edge_level(y0, c0)
+            return self._chase_from((x, ys, z), self.probe((x, ys, z)), found, ys)
         levels = {y0: c0}
         for dy in st.level_probes:
             y = y0 + dy
@@ -192,9 +198,35 @@ class Run:
         else:
             ys = max(levels, key=lambda y: (levels[y], -abs(y - y0)))
             c = levels[ys]
+        return self._chase_from((x, ys, z), c, found, ys)
+
+    def _edge_level(self, y0, c0):
+        """Binary search the dug shaft above the hit for the highest probe height that still counts ore.
+        The cube reaches R blocks down, so the top of the ore is R below that height."""
+        st, R = self.st, self.st.radius
+        lo, hi = y0, min(y0 + 2 * R + 1, self.h - 1)   # count(lo) > 0; count above hi assumed 0
+        known = {q[1]: c for q, c in self.probes if q[0] == self.x and q[2] == self.z}
+        if hi in known and known[hi] > 0:
+            lo = hi
+        while hi - lo > 1:
+            mid = (lo + hi) // 2
+            c = known.get(mid)
+            if c is None:
+                c = self.probe((self.x, mid, self.z))
+                known[mid] = c
+            if c > 0:
+                lo = mid
+            else:
+                hi = mid
+        top = lo - R                      # highest ore block level near the shaft
+        ys = max(FLOOR_Y, top - 1)        # 2-high tunnel at top-1..top
+        found = self.dig_shaft_to(ys) if ys < self.cursor else False
+        return ys, found
+
+    def _chase_from(self, pos, c, found, ys):
+        st = self.st
         if c == 0:
             return found, ys
-        pos = (x, ys, z)
         spent_since_find = 0.0
         finds = 0
         for _ in range(4):  # up to 4 chase rounds (several bodies in one cube)
