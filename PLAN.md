@@ -113,9 +113,12 @@ overlaid with true deposit locations.
 ## 4. Status
 - [x] Pilot (seed 12345, 256×256): 5 s server time, 16 MB sqlite, 99.99% of ore blocks attributed to a
       recorded deposit. Chunk-level correlation between density reading and ore blocks: copper 0.69, tin 0.56.
-- [ ] Choose the "unique deposit" definition for the headline metric (ore body vs generator deposit)
-- [ ] Sweep: seeds × globalDepositSpawnRate at 2048²
-- [ ] Calibration analysis, then the strategy simulator
+- [x] "Unique deposit" = connected ore body (26-adjacent, same ore type), 5+ blocks. Shapes: pancake / clump / speck.
+- [x] First 2048² world (seed 1, rate 1.0): 5.5 min, 350 MB sqlite, 5.3M ore blocks, 68k bodies
+- [x] Vertical-shaft simulator (`analysis/sim.py`), 16 strategies × 18 ores × 16,384 shafts
+- [x] Report page (`report/index.html` + `analysis/report_data.py`): https://claude.ai/artifact/799A3FxNgkTvGwZ6epqSyg
+- [ ] Sweep: seeds × globalDepositSpawnRate at 2048², then pool seeds in the report
+- [ ] Strategies still to model: lateral search after a hit (deposits cluster), depth-limited shafts, realistic localisation cost
 
 ## Usage
 ```

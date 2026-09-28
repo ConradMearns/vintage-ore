@@ -1,0 +1,786 @@
+<title>Vintage Ore Survey</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@112,600;112,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<style>
+:root {
+  --page: #f3f3ef;
+  --surface: #fcfcfb;
+  --surface-2: #ecece6;
+  --ink: #111312;
+  --ink-2: #52514e;
+  --muted: #898781;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --border: rgba(11, 11, 11, 0.10);
+  --chip-on-bg: #111312;
+  --chip-on-ink: #fcfcfb;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a;
+  --w0: #c3c2b7; --w1: #86b6ef; --w2: #5598e7; --w3: #2a78d6; --w4: #1c5cab; --w5: #0d366b;
+  --seq-lo: #fcfcfb;
+  --seq-1: #cde2fb; --seq-2: #86b6ef; --seq-3: #3987e5; --seq-4: #1c5cab; --seq-5: #0d366b;
+  --good: #006300;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-head: "Archivo", "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0e0f0e; --surface: #1a1a19; --surface-2: #242523;
+    --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781; --grid: #2c2c2a; --axis: #383835;
+    --border: rgba(255, 255, 255, 0.10);
+    --chip-on-bg: #f3f3ef; --chip-on-ink: #111312;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70;
+    --w0: #4a4a47; --w1: #184f95; --w2: #3987e5; --w3: #6da7ec; --w4: #9ec5f4; --w5: #cde2fb;
+    --seq-lo: #1a1a19;
+    --seq-1: #104281; --seq-2: #1c5cab; --seq-3: #3987e5; --seq-4: #86b6ef; --seq-5: #cde2fb;
+    --good: #0ca30c;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0e0f0e; --surface: #1a1a19; --surface-2: #242523;
+  --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781; --grid: #2c2c2a; --axis: #383835;
+  --border: rgba(255, 255, 255, 0.10);
+  --chip-on-bg: #f3f3ef; --chip-on-ink: #111312;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70;
+  --w0: #4a4a47; --w1: #184f95; --w2: #3987e5; --w3: #6da7ec; --w4: #9ec5f4; --w5: #cde2fb;
+  --seq-lo: #1a1a19;
+  --seq-1: #104281; --seq-2: #1c5cab; --seq-3: #3987e5; --seq-4: #86b6ef; --seq-5: #cde2fb;
+  --good: #0ca30c;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--page);
+  color: var(--ink);
+  font: 15px/1.55 var(--font-body);
+  padding-inline: 16px;
+  padding-block: 0 64px;
+}
+.wrap { max-width: 1120px; margin: 0 auto; display: grid; gap: 40px; }
+h1, h2, h3 { font-family: var(--font-head); font-stretch: 112%; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(28px, 4.4vw, 44px); line-height: 1.05; letter-spacing: -0.01em; font-weight: 700; }
+h2 { font-size: 22px; line-height: 1.2; font-weight: 700; }
+h3 { font-size: 15px; font-weight: 600; font-family: var(--font-body); font-stretch: 100%; }
+p { margin: 0; max-width: 68ch; color: var(--ink-2); }
+.mono, .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.eyebrow { font: 500 12px/1 var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+
+header.top { padding-top: 40px; display: grid; gap: 14px; }
+.dataset { display: flex; flex-wrap: wrap; gap: 6px 18px; font: 13px/1.4 var(--font-mono); color: var(--ink-2); }
+.dataset b { color: var(--ink); font-weight: 500; }
+
+.filters {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  background: var(--page);
+  border-bottom: 1px solid var(--border);
+  padding-block: 12px;
+  display: flex; flex-wrap: wrap; gap: 12px 28px; align-items: end;
+}
+.filter { display: grid; gap: 6px; }
+.filter > label, .filter > span { font: 500 11px/1 var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+select {
+  font: 500 14px var(--font-body); color: var(--ink); background: var(--surface);
+  border: 1px solid var(--border); border-radius: 6px; padding: 6px 28px 6px 10px; min-height: 34px;
+}
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip {
+  font: 500 13px/1 var(--font-body); color: var(--ink-2); background: var(--surface);
+  border: 1px solid var(--border); border-radius: 999px; padding: 8px 11px; cursor: pointer; min-height: 34px;
+}
+.chip:hover { color: var(--ink); }
+.chip[aria-pressed="true"] { background: var(--chip-on-bg); color: var(--chip-on-ink); border-color: var(--chip-on-bg); }
+.chip:focus-visible, select:focus-visible, summary:focus-visible { outline: 2px solid var(--s1); outline-offset: 2px; }
+
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.tile { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; display: grid; gap: 8px; align-content: start; }
+.tile .k { font: 500 11px/1.2 var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.tile .v { font: 700 24px/1.15 var(--font-head); font-stretch: 112%; }
+.tile .d { font-size: 13.5px; color: var(--ink-2); }
+.tile .delta { color: var(--good); font-weight: 600; }
+
+section.block { display: grid; gap: 16px; }
+.block-head { display: grid; gap: 6px; }
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; display: grid; gap: 12px; align-content: start; min-width: 0; }
+.panel-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 16px; align-items: baseline; }
+.panel-head .note { font-size: 13px; color: var(--muted); }
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
+.chart { width: 100%; min-width: 0; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart text { font-family: var(--font-body); }
+.axis text { fill: var(--muted); font: 11.5px var(--font-mono); }
+.axis path, .axis line { stroke: var(--axis); }
+.gridl line { stroke: var(--grid); }
+.gridl path { display: none; }
+.lbl { fill: var(--ink-2); font-size: 12px; }
+.lbl-strong { fill: var(--ink); font-size: 12px; font-weight: 600; }
+.val { fill: var(--ink-2); font: 11.5px var(--font-mono); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--ink-2); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.legend i.line { height: 3px; border-radius: 2px; vertical-align: 3px; width: 14px; }
+
+.mapwrap { display: grid; grid-template-columns: minmax(0, 560px) minmax(220px, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 760px) { .mapwrap { grid-template-columns: 1fr; } }
+.mapbox { position: relative; width: 100%; max-width: 560px; aspect-ratio: 1; }
+.mapbox canvas { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 6px; image-rendering: pixelated; }
+.scale { display: grid; gap: 6px; }
+.scalebar { height: 10px; border-radius: 3px; }
+.scaleticks { position: relative; height: 16px; font: 11px var(--font-mono); color: var(--muted); }
+.scaleticks span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+.readout { font-size: 13.5px; color: var(--ink-2); display: grid; gap: 4px; min-height: 5.5em; }
+.readout b { color: var(--ink); font-weight: 600; }
+.toggle { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--ink-2); }
+
+.tip {
+  position: fixed; z-index: 20; pointer-events: none; background: var(--surface); color: var(--ink);
+  border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 12.5px; line-height: 1.45;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12); max-width: 260px;
+}
+.tip .t { font-weight: 600; margin-bottom: 2px; }
+.tip .m { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--ink-2); }
+
+details { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; }
+summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+.tablewrap { overflow-x: auto; margin-top: 12px; }
+table { border-collapse: collapse; font-size: 13px; width: 100%; }
+th, td { text-align: right; padding: 6px 10px; border-bottom: 1px solid var(--grid); white-space: nowrap; font-variant-numeric: tabular-nums; }
+th:first-child, td:first-child { text-align: left; }
+th { font: 500 11px var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+td { font-family: var(--font-mono); color: var(--ink-2); }
+td:first-child { font-family: var(--font-body); color: var(--ink); }
+
+.method { display: grid; gap: 10px; }
+.method ul { margin: 0; padding-left: 20px; color: var(--ink-2); max-width: 76ch; display: grid; gap: 6px; }
+.loading { color: var(--muted); font-size: 14px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <span class="eyebrow">Prospecting research · Vintage Story 1.22</span>
+    <h1>Vintage Ore Survey</h1>
+    <p>Every ore block in a generated world, the density readings a player would get over it, and 16,384 simulated vertical shafts per strategy. The question: given the reading where you stand, how should you dig, and how much ore should you expect per point of tool durability?</p>
+    <div class="dataset" id="dataset"><span class="loading">Loading survey…</span></div>
+  </header>
+
+  <div class="filters" role="group" aria-label="Filters for every chart below">
+    <div class="filter">
+      <label for="ore">Ore</label>
+      <select id="ore"></select>
+    </div>
+    <div class="filter">
+      <span id="word-label">Density reading at the shaft</span>
+      <div class="chips" id="word" role="group" aria-labelledby="word-label"></div>
+    </div>
+    <div class="filter">
+      <span id="radius-label">Node search radius (world setting)</span>
+      <div class="chips" id="radius" role="group" aria-labelledby="radius-label"></div>
+    </div>
+  </div>
+
+  <section class="block" aria-labelledby="h-answer">
+    <div class="block-head">
+      <span class="eyebrow">Answer</span>
+      <h2 id="h-answer">What to do with this reading</h2>
+    </div>
+    <div class="tiles" id="tiles"></div>
+  </section>
+
+  <section class="block" aria-labelledby="h-map">
+    <div class="block-head">
+      <span class="eyebrow">Map</span>
+      <h2 id="h-map">What the pick says vs. what is actually there</h2>
+      <p>The blue field is the density reading a player gets anywhere on the map. Rings are real ore bodies of 5 or more blocks, sized by block count. The reading comes from a smooth noise map, not from the blocks, so it shows where deposits are likely, not where each one is.</p>
+    </div>
+    <div class="panel">
+      <div class="mapwrap">
+        <div class="mapbox" id="mapbox">
+          <canvas id="heat" aria-label="Density reading heatmap with ore body locations" role="img"></canvas>
+          <canvas id="dots" aria-hidden="true"></canvas>
+        </div>
+        <div style="display:grid;gap:18px">
+          <div class="scale">
+            <h3>Density reading</h3>
+            <div class="scalebar" id="scalebar"></div>
+            <div class="scaleticks" id="scaleticks"></div>
+          </div>
+          <div class="legend" id="maplegend"></div>
+          <label class="toggle"><input type="checkbox" id="showbodies" checked> Show ore bodies</label>
+          <div class="readout" id="readout" aria-live="polite">Hover the map to read a spot.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" aria-labelledby="h-depth">
+    <div class="block-head">
+      <span class="eyebrow">Depth &amp; shape</span>
+      <h2 id="h-depth">Where the ore sits and what it looks like</h2>
+      <p id="depth-note"></p>
+    </div>
+    <div class="two">
+      <div class="panel">
+        <div class="panel-head"><h3>Ore blocks by depth below the surface</h3><span class="note">4-block bins</span></div>
+        <div class="legend" id="depthlegend"></div>
+        <div class="chart" id="depthchart"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3>Bodies vs. ore, by body shape</h3><span class="note">share of each total</span></div>
+        <div class="legend" id="shapelegend"></div>
+        <div class="chart" id="shapechart"></div>
+        <p style="font-size:13.5px" id="shape-note"></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" aria-labelledby="h-cal">
+    <div class="block-head">
+      <span class="eyebrow">Calibration</span>
+      <h2 id="h-cal">How much a reading is worth</h2>
+      <p>One full shaft per spot, dug from the surface to bedrock with a node search every 6 blocks at radius 6, chasing every body it detects. Grouped by the density reading at the top of the shaft.</p>
+    </div>
+    <div class="two">
+      <div class="panel">
+        <div class="panel-head"><h3>Chance a shaft finds at least one deposit</h3></div>
+        <div class="chart" id="calp"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3>Ore blocks mined per shaft</h3><span class="note">median, bar spans the middle half</span></div>
+        <div class="chart" id="caly"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" aria-labelledby="h-strat">
+    <div class="block-head">
+      <span class="eyebrow">Strategies</span>
+      <h2 id="h-strat">Probe spacing and radius</h2>
+      <p>Each bar is one strategy run over every shaft location. "R6 every 6" is your current method: node search radius 6, one probe every 6 blocks down. Strategies at your world's radius are drawn in colour.</p>
+    </div>
+    <div class="two">
+      <div class="panel">
+        <div class="panel-head"><h3>Ore per 100 durability</h3><span class="note" id="strat-scope"></span></div>
+        <div class="chart" id="stratrate"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3>Deposits found per 1,000 durability</h3><span class="note">bodies of 5+ blocks</span></div>
+        <div class="chart" id="stratdep"></div>
+      </div>
+    </div>
+    <details>
+      <summary>Strategy table</summary>
+      <div class="tablewrap"><table id="strattable"></table></div>
+    </details>
+  </section>
+
+  <section class="block" aria-labelledby="h-curve">
+    <div class="block-head">
+      <span class="eyebrow">Diminishing returns</span>
+      <h2 id="h-curve">Ore gained as a shaft goes deeper</h2>
+      <p>Average cumulative ore against durability spent, following the shaft down. Dots mark every 24 blocks of depth. A line that flattens means the rest of the shaft mostly costs durability.</p>
+    </div>
+    <div class="panel">
+      <div class="legend" id="curvelegend"></div>
+      <div class="chart" id="curve"></div>
+    </div>
+  </section>
+
+  <section class="block" aria-labelledby="h-keep">
+    <div class="block-head">
+      <span class="eyebrow">After the first deposit</span>
+      <h2 id="h-keep">Keep searching, or start over?</h2>
+      <p>Left: once a shaft has found its first deposit, compare the ore you get by digging on down with what a brand-new shaft at the same reading would give on average. Right: how often another deposit of the same ore sits within a given distance, measured from a deposit and from a random spot.</p>
+    </div>
+    <div class="two">
+      <div class="panel">
+        <div class="panel-head"><h3>Ore per 100 durability after the first deposit</h3></div>
+        <div class="legend" id="keeplegend"></div>
+        <div class="chart" id="keep"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3>Another deposit within this many blocks</h3><span class="note">horizontal distance between centres</span></div>
+        <div class="legend" id="nbrlegend"></div>
+        <div class="chart" id="nbr"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block method" aria-labelledby="h-method">
+    <div class="block-head">
+      <span class="eyebrow">Method</span>
+      <h2 id="h-method">How the numbers were made</h2>
+    </div>
+    <ul id="method"></ul>
+  </section>
+</div>
+<div class="tip" id="tip" hidden></div>
+
+<script>
+const WORD_KEYS = ["none", "very poor", "poor", "decent", "high", "very high+"];
+const WORD_MIN = {"very poor": 0.025, "poor": 2/15, "decent": 4/15, "high": 6/15, "very high+": 8/15};
+const ORE_NAMES = {
+  nativecopper: "Native copper", cassiterite: "Cassiterite (tin)", bismuthinite: "Bismuthinite", sphalerite: "Sphalerite (zinc)",
+  hematite: "Hematite", magnetite: "Magnetite", limonite: "Limonite", galena: "Galena (lead, silver)", pentlandite: "Pentlandite (nickel)",
+  chromite: "Chromite", ilmenite: "Ilmenite (titanium)", cinnabar: "Cinnabar", quartz_nativesilver: "Silver in quartz",
+  quartz_nativegold: "Gold in quartz", olivine_peridot: "Peridot in olivine", lignite: "Lignite", bituminouscoal: "Bituminous coal",
+  sulfur: "Sulfur", borax: "Borax", quartz: "Quartz", olivine: "Olivine", flint: "Flint", emerald: "Emerald"
+};
+const SHAPES = [["pancake", "Pancake", "--s1"], ["clump", "Clump", "--s2"], ["speck", "Speck (<5 blocks)", "--s3"]];
+const oreName = o => ORE_NAMES[o] || o;
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const wordVar = w => "--w" + WORD_KEYS.indexOf(w);
+const fmt1 = d3.format(",.1f"), fmt0 = d3.format(",.0f"), pct = d3.format(".0%");
+
+const state = { ore: "nativecopper", word: "any", radius: 6 };
+try { Object.assign(state, JSON.parse(localStorage.getItem("ore-survey-filters") || "{}")); } catch (e) {}
+let D = null;
+
+const tip = document.getElementById("tip");
+function showTip(ev, html) {
+  tip.innerHTML = html; tip.hidden = false;
+  const r = tip.getBoundingClientRect();
+  let x = ev.clientX + 14, y = ev.clientY + 14;
+  if (x + r.width > innerWidth - 8) x = ev.clientX - r.width - 14;
+  if (y + r.height > innerHeight - 8) y = ev.clientY - r.height - 14;
+  tip.style.left = x + "px"; tip.style.top = y + "px";
+}
+const hideTip = () => { tip.hidden = true; };
+
+function svgIn(el, w, h) {
+  el.innerHTML = "";
+  return d3.select(el).append("svg").attr("viewBox", `0 0 ${w} ${h}`).attr("role", "img");
+}
+const widthOf = el => Math.max(280, Math.round(el.clientWidth || 480));
+
+/* ---------- filters ---------- */
+function buildFilters() {
+  const sel = document.getElementById("ore");
+  const ores = D.ores.slice().sort((a, b) => (D.ore_blocks[b] || 0) - (D.ore_blocks[a] || 0));
+  sel.innerHTML = ores.map(o => `<option value="${o}">${oreName(o)}</option>`).join("");
+  if (!D.ores.includes(state.ore)) state.ore = ores[0];
+  sel.value = state.ore;
+  sel.onchange = () => { state.ore = sel.value; save(); renderAll(); };
+
+  const chips = (id, items, key) => {
+    const box = document.getElementById(id);
+    box.innerHTML = items.map(([v, l]) => `<button type="button" class="chip" data-v="${v}" aria-pressed="${String(state[key]) === String(v)}">${l}</button>`).join("");
+    box.onclick = e => {
+      const b = e.target.closest(".chip"); if (!b) return;
+      state[key] = key === "radius" ? +b.dataset.v : b.dataset.v;
+      box.querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", String(c === b)));
+      save(); renderAll();
+    };
+  };
+  chips("word", [["any", "Any"], ...WORD_KEYS.map(w => [w, w === "none" ? "None" : w[0].toUpperCase() + w.slice(1)])], "word");
+  chips("radius", [2, 4, 6, 8].map(r => [r, r]), "radius");
+}
+function save() { try { localStorage.setItem("ore-survey-filters", JSON.stringify(state)); } catch (e) {} }
+
+/* ---------- helpers ---------- */
+function stratValue(s, metric) {
+  const src = state.word === "any" ? s : s.by_word[state.word];
+  if (!src) return null;
+  return metric === "rate" ? src.rate * 100 : src.dep_per_1k;
+}
+function wordLabel(w) { return w === "any" ? "any reading" : w === "none" ? "no reading" : `a “${w}” reading`; }
+
+/* ---------- tiles ---------- */
+function renderTiles() {
+  const P = D.per_ore[state.ore];
+  const strats = P.strategies;
+  const atR = strats.filter(s => s.radius === state.radius && !s.stop_after_first && stratValue(s, "rate") != null);
+  const best = atR.slice().sort((a, b) => stratValue(b, "rate") - stratValue(a, "rate"))[0];
+  const yours = strats.find(s => s.radius === state.radius && s.spacing === 6 && s.min_count === 1 && !s.stop_after_first);
+  const tiles = [];
+
+  if (best) {
+    const bv = stratValue(best, "rate"), yv = yours ? stratValue(yours, "rate") : null;
+    const gain = yv ? (bv / yv - 1) : null;
+    tiles.push(`<div class="tile"><span class="k">Best probing at radius ${state.radius}</span>
+      <span class="v">Every ${best.spacing} blocks${best.min_count > 1 ? `, chase ≥${best.min_count}` : ""}</span>
+      <span class="d"><span class="num">${fmt1(bv)}</span> ore per 100 durability with ${wordLabel(state.word)}.
+      ${gain != null && best !== yours ? `<span class="delta">+${pct(gain)}</span> over probing every 6.` : best === yours ? "Probing every 6 is already the best spacing here." : ""}</span></div>`);
+  }
+
+  const cal = P.calibration;
+  if (state.word !== "any" && cal[state.word]) {
+    const c = cal[state.word];
+    tiles.push(`<div class="tile"><span class="k">One shaft, ${wordLabel(state.word)}</span>
+      <span class="v">${fmt0(c.yield_q[2])} ore blocks</span>
+      <span class="d">Median over <span class="num">${fmt0(c.n)}</span> shafts; middle half ${fmt0(c.yield_q[1])}–${fmt0(c.yield_q[3])}.
+      <span class="num">${pct(c.p_any)}</span> find at least one deposit (avg <span class="num">${fmt1(c.deposits)}</span>).</span></div>`);
+  } else {
+    const rows = WORD_KEYS.filter(w => cal[w]);
+    const hi = rows[rows.length - 1];
+    tiles.push(`<div class="tile"><span class="k">What a reading is worth</span>
+      <span class="v">${pct(cal.none ? cal.none.p_any : 0)} → ${pct(cal[hi].p_any)}</span>
+      <span class="d">Chance a shaft finds a deposit, from no reading to “${hi}”. Median ore per shaft rises from
+      <span class="num">${fmt0(cal.none ? cal.none.yield_q[2] : 0)}</span> to <span class="num">${fmt0(cal[hi].yield_q[2])}</span>.</span></div>`);
+  }
+
+  const K = P.keep;
+  const keepWords = WORD_KEYS.filter(w => K[w] && K[w].continue_rate != null);
+  if (state.word !== "any" && K[state.word]) {
+    const k = K[state.word];
+    const cont = k.continue_rate >= k.fresh_rate;
+    tiles.push(`<div class="tile"><span class="k">After the first deposit</span>
+      <span class="v">${cont ? "Keep digging down" : "Start a new shaft"}</span>
+      <span class="d">Digging on gives <span class="num">${fmt1(k.continue_rate * 100)}</span> ore per 100 durability; a fresh shaft at this reading averages
+      <span class="num">${fmt1(k.fresh_rate * 100)}</span>.</span></div>`);
+  } else {
+    const wins = keepWords.filter(w => w !== "none" && K[w].continue_rate >= K[w].fresh_rate);
+    tiles.push(`<div class="tile"><span class="k">After the first deposit</span>
+      <span class="v">${wins.length === 0 ? "Start a new shaft" : wins.length >= keepWords.filter(w => w !== "none").length ? "Keep digging down" : "Depends on the reading"}</span>
+      <span class="d">${wins.length ? `Digging on beats a fresh shaft at: ${wins.join(", ")}.` : "A fresh shaft at the same reading beats digging on at every reading."} Pick a reading above for the numbers.</span></div>`);
+  }
+
+  const N = P.neighbours;
+  if (N) {
+    tiles.push(`<div class="tile"><span class="k">Nearby deposits</span>
+      <span class="v">${fmt0(N.median_from_deposit)} blocks to the next</span>
+      <span class="d">Median distance from one ${oreName(state.ore).toLowerCase()} deposit to the next, against
+      <span class="num">${fmt0(N.median_from_random)}</span> from a random spot. Deposits cluster, so search around a find.</span></div>`);
+  }
+  document.getElementById("tiles").innerHTML = tiles.join("");
+}
+
+/* ---------- map ---------- */
+let mapGrid = null, mapBodies = [];
+function decode(b64) { const s = atob(b64), a = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) a[i] = s.charCodeAt(i); return a; }
+function seqScale() {
+  const stops = ["--seq-lo", "--seq-1", "--seq-2", "--seq-3", "--seq-4", "--seq-5"].map(css);
+  return d3.scaleLinear().domain([0, 0.025, 2/15, 4/15, 6/15, 8/15].map(v => v)).range(stops).interpolate(d3.interpolateRgb).clamp(true);
+}
+function renderMap() {
+  const P = D.per_ore[state.ore], M = D.maps;
+  const code = P.reading_code;
+  mapGrid = decode(M.grids[code]);
+  const n = M.n, heat = document.getElementById("heat");
+  heat.width = n; heat.height = n;
+  const ctx = heat.getContext("2d"), img = ctx.createImageData(n, n), sc = seqScale();
+  for (let i = 0; i < n * n; i++) {
+    const f = mapGrid[i] / 255 * M.scale, c = d3.rgb(sc(f));
+    img.data[i * 4] = c.r; img.data[i * 4 + 1] = c.g; img.data[i * 4 + 2] = c.b; img.data[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+
+  const bar = document.getElementById("scalebar");
+  const stops = d3.range(0, 1.001, 0.05).map(t => `${sc(t * 0.667)} ${t * 100}%`);
+  bar.style.background = `linear-gradient(90deg, ${stops.join(",")})`;
+  bar.style.border = "1px solid var(--border)";
+  document.getElementById("scaleticks").innerHTML = [["very poor", 0.025], ["poor", 2/15], ["decent", 4/15], ["high", 6/15], ["v. high+", 8/15]]
+    .map(([l, v]) => `<span style="left:${v / 0.667 * 100}%">${l}</span>`).join("");
+
+  mapBodies = D.bodies[state.ore] || [];
+  document.getElementById("maplegend").innerHTML =
+    `<span><i style="background:transparent;border:1.5px solid ${css("--s2")};border-radius:50%"></i>Ore body (${fmt0(mapBodies.length)} of 5+ blocks)</span>`;
+  drawDots();
+}
+function drawDots() {
+  const box = document.getElementById("mapbox"), cv = document.getElementById("dots");
+  const px = box.clientWidth, dpr = devicePixelRatio || 1;
+  cv.width = px * dpr; cv.height = px * dpr;
+  const ctx = cv.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, px, px);
+  if (!document.getElementById("showbodies").checked) return;
+  const k = px / D.totals.area, col = css("--s2"), scale = px / 560;
+  const sorted = mapBodies.slice().sort((a, b) => b[2] - a[2]);
+  ctx.lineWidth = 1; ctx.strokeStyle = col; ctx.globalAlpha = 0.85;
+  for (const [x, z, n] of sorted) {
+    const r = (0.6 + Math.sqrt(n) * 0.12) * scale;
+    ctx.beginPath(); ctx.arc(x * k, z * k, r, 0, Math.PI * 2); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+function mapHover(ev) {
+  const box = document.getElementById("mapbox"), r = box.getBoundingClientRect();
+  const fx = (ev.clientX - r.left) / r.width, fz = (ev.clientY - r.top) / r.height;
+  if (fx < 0 || fz < 0 || fx >= 1 || fz >= 1) return;
+  const n = D.maps.n, i = Math.floor(fz * n) * n + Math.floor(fx * n);
+  const f = mapGrid[i] / 255 * D.maps.scale;
+  const w = f <= 0.025 ? "no reading" : ["very poor", "poor", "decent", "high", "very high", "ultra high"][Math.min(5, Math.floor(f * 7.5))];
+  const bx = fx * D.totals.area, bz = fz * D.totals.area;
+  let near = null, nd = 1e9;
+  for (const b of mapBodies) { const d = Math.hypot(b[0] - bx, b[1] - bz); if (d < nd) { nd = d; near = b; } }
+  const shape = { p: "pancake", c: "clump", s: "speck" };
+  document.getElementById("readout").innerHTML =
+    `<span>Block <span class="num">${fmt0(bx)}, ${fmt0(bz)}</span> from the survey corner</span>
+     <span>Reading: <b>${w}</b> <span class="num">(${(f * 1000 / 1000).toFixed(3)})</span></span>` +
+    (near ? `<span>Nearest body: <b>${fmt0(near[2])} blocks</b>, ${shape[near[4]]}, <span class="num">${near[3]}</span> deep, <span class="num">${fmt0(nd)}</span> blocks away</span>` : "");
+}
+
+/* ---------- depth profile ---------- */
+function renderDepth() {
+  const el = document.getElementById("depthchart"), W = widthOf(el);
+  const prof = D.profiles[state.ore], bin = prof.bin;
+  const nb = prof.depth.pancake.length;
+  let last = 0;
+  for (let i = 0; i < nb; i++) if (SHAPES.some(([k]) => prof.depth[k][i] > 0)) last = i;
+  const rows = d3.range(Math.min(nb, last + 3)).map(i => ({ d0: i * bin, v: SHAPES.map(([k]) => prof.depth[k][i]) }));
+  const m = { t: 8, r: 16, b: 34, l: 48 }, bh = 7, H = m.t + m.b + rows.length * (bh + 2);
+  const svg = svgIn(el, W, H);
+  const x = d3.scaleLinear().domain([0, d3.max(rows, r => d3.sum(r.v)) || 1]).nice().range([m.l, W - m.r]);
+  const y = d => m.t + d / bin * (bh + 2);
+  svg.append("g").attr("class", "gridl").attr("transform", `translate(0,${H - m.b})`).call(d3.axisBottom(x).ticks(4).tickSize(-(H - m.t - m.b)).tickFormat(""));
+  svg.append("g").attr("class", "axis").attr("transform", `translate(0,${H - m.b})`).call(d3.axisBottom(x).ticks(4, "~s").tickSizeOuter(0));
+  svg.append("g").attr("class", "axis").attr("transform", `translate(${m.l},0)`)
+    .call(d3.axisLeft(d3.scaleLinear().domain([0, rows.length * bin]).range([y(0), y(rows.length * bin)])).ticks(6).tickSizeOuter(0));
+  svg.append("text").attr("class", "lbl").attr("x", m.l).attr("y", H - 4).text("ore blocks").attr("font-size", 11.5);
+  svg.append("text").attr("class", "lbl").attr("transform", `translate(12,${m.t}) rotate(90)`).text("blocks below surface ↓").attr("font-size", 11.5);
+  const colors = SHAPES.map(([, , v]) => css(v));
+  rows.forEach(r => {
+    let x0 = m.l;
+    r.v.forEach((v, j) => {
+      if (!v) return;
+      const wv = x(v) - x(0);
+      svg.append("rect").attr("x", x0).attr("y", y(r.d0)).attr("width", Math.max(0.5, wv - (j < 2 ? 1 : 0))).attr("height", bh).attr("rx", 2).attr("fill", colors[j]);
+      x0 += wv;
+    });
+    svg.append("rect").attr("x", m.l).attr("y", y(r.d0) - 1).attr("width", W - m.l - m.r).attr("height", bh + 2).attr("fill", "transparent")
+      .on("mousemove", ev => showTip(ev, `<div class="t">${r.d0}–${r.d0 + bin - 1} blocks deep</div>` +
+        SHAPES.map(([, l], j) => `<div class="m">${l}: ${fmt0(r.v[j])}</div>`).join(""))).on("mouseleave", hideTip);
+  });
+  const s = D.shapes[state.ore].dims;
+  if (s && s.med_depth != null) {
+    const yy = y(s.med_depth);
+    svg.append("line").attr("x1", m.l).attr("x2", W - m.r).attr("y1", yy).attr("y2", yy).attr("stroke", css("--ink-2")).attr("stroke-width", 1);
+    svg.append("text").attr("class", "lbl-strong").attr("x", W - m.r).attr("y", yy - 5).attr("text-anchor", "end")
+      .attr("stroke", css("--surface")).attr("stroke-width", 4).attr("paint-order", "stroke").attr("stroke-linejoin", "round")
+      .text(`median deposit ${fmt0(s.med_depth)} deep`);
+  }
+  document.getElementById("depthlegend").innerHTML = SHAPES.map(([, l, v]) => `<span><i style="background:${css(v)}"></i>${l}</span>`).join("");
+  document.getElementById("depth-note").textContent = s && s.med_depth != null
+    ? `${oreName(state.ore)} deposits (5+ blocks) sit a median ${fmt0(s.med_depth)} blocks below the surface, with 80% between ${fmt0(s.p10_depth)} and ${fmt0(s.p90_depth)}. A typical one is ${fmt0(s.med_thick)} block${s.med_thick === 1 ? "" : "s"} thick and ${fmt0(s.med_span)} across.`
+    : "";
+}
+
+/* ---------- shapes ---------- */
+function renderShapes() {
+  const el = document.getElementById("shapechart"), W = widthOf(el);
+  const S = D.shapes[state.ore];
+  const tb = d3.sum(SHAPES, ([k]) => S[k].bodies), to = d3.sum(SHAPES, ([k]) => S[k].blocks);
+  const rows = [["Bodies", SHAPES.map(([k]) => S[k].bodies / tb), SHAPES.map(([k]) => S[k].bodies)],
+                ["Ore blocks", SHAPES.map(([k]) => S[k].blocks / to), SHAPES.map(([k]) => S[k].blocks)]];
+  const m = { t: 6, r: 8, b: 26, l: 84 }, bh = 26, gap = 18, H = m.t + m.b + rows.length * (bh + gap) - gap;
+  const svg = svgIn(el, W, H), x = d3.scaleLinear().domain([0, 1]).range([m.l, W - m.r]);
+  svg.append("g").attr("class", "axis").attr("transform", `translate(0,${H - m.b})`).call(d3.axisBottom(x).ticks(4, "%").tickSizeOuter(0));
+  const colors = SHAPES.map(([, , v]) => css(v));
+  rows.forEach(([name, fr, raw], i) => {
+    const yy = m.t + i * (bh + gap);
+    svg.append("text").attr("class", "lbl").attr("x", m.l - 10).attr("y", yy + bh / 2 + 4).attr("text-anchor", "end").text(name);
+    let acc = 0;
+    fr.forEach((f, j) => {
+      if (f <= 0) return;
+      const x0 = x(acc), w = x(acc + f) - x0;
+      svg.append("rect").attr("x", x0).attr("y", yy).attr("width", Math.max(0.5, w - 2)).attr("height", bh).attr("rx", 3).attr("fill", colors[j])
+        .on("mousemove", ev => showTip(ev, `<div class="t">${SHAPES[j][1]}</div><div class="m">${pct(f)} of ${name.toLowerCase()} · ${fmt0(raw[j])}</div>`)).on("mouseleave", hideTip);
+      if (w > 44) svg.append("text").attr("x", x0 + 8).attr("y", yy + bh / 2 + 4).attr("fill", css("--surface")).attr("font-size", 12).attr("font-weight", 600).attr("pointer-events", "none").text(pct(f));
+      acc += f;
+    });
+  });
+  document.getElementById("shapelegend").innerHTML = SHAPES.map(([, l, v]) => `<span><i style="background:${css(v)}"></i>${l}</span>`).join("");
+  const sp = S.speck.bodies / tb, so = S.speck.blocks / to, pk = S.pancake.blocks / to;
+  document.getElementById("shape-note").textContent =
+    `Pancakes are wide and flat (6+ blocks across, at most half as thick as wide). Specks are ${pct(sp)} of all bodies but hold ${so < 0.01 ? "under 1%" : pct(so)} of the ore; pancakes hold ${pct(pk)}. Deposit counts on this page ignore specks.`;
+}
+
+/* ---------- calibration ---------- */
+function wordAxisChart(el, rows, opts) {
+  const W = widthOf(el), m = { t: 22, r: 12, b: 40, l: 48 }, H = 240;
+  const svg = svgIn(el, W, H);
+  const x = d3.scaleBand().domain(rows.map(r => r.w)).range([m.l, W - m.r]).padding(0.28);
+  const y = d3.scaleLinear().domain([0, opts.max || d3.max(rows, opts.top)]).nice().range([H - m.b, m.t]);
+  svg.append("g").attr("class", "gridl").attr("transform", `translate(${m.l},0)`).call(d3.axisLeft(y).ticks(4).tickSize(-(W - m.l - m.r)).tickFormat(""));
+  svg.append("g").attr("class", "axis").attr("transform", `translate(${m.l},0)`).call(d3.axisLeft(y).ticks(4, opts.tickFmt).tickSizeOuter(0));
+  svg.append("g").attr("class", "axis").attr("transform", `translate(0,${H - m.b})`).call(d3.axisBottom(x).tickSizeOuter(0).tickFormat(w => w === "none" ? "none" : w))
+    .selectAll("text").attr("font-size", 11);
+  rows.forEach(r => {
+    const sel = state.word === "any" || state.word === r.w;
+    const g = svg.append("g").attr("opacity", sel ? 1 : 0.35);
+    opts.draw(g, r, x, y, css(wordVar(r.w)));
+    if (state.word === r.w || (state.word === "any" && r === rows[rows.length - 1]))
+      g.append("text").attr("class", "val").attr("x", x(r.w) + x.bandwidth() / 2).attr("y", y(opts.top(r)) - 6).attr("text-anchor", "middle").text(opts.label(r));
+    svg.append("rect").attr("x", x(r.w) - 4).attr("y", m.t).attr("width", x.bandwidth() + 8).attr("height", H - m.t - m.b).attr("fill", "transparent")
+      .on("mousemove", ev => showTip(ev, opts.tip(r))).on("mouseleave", hideTip);
+  });
+}
+function renderCalibration() {
+  const cal = D.per_ore[state.ore].calibration;
+  const rows = WORD_KEYS.filter(w => cal[w]).map(w => ({ w, ...cal[w] }));
+  const tipBase = r => `<div class="t">${r.w === "none" ? "No reading" : "“" + r.w + "”"} · ${fmt0(r.n)} shafts</div>
+    <div class="m">finds a deposit: ${pct(r.p_any)}</div><div class="m">deposits per shaft: ${fmt1(r.deposits)}</div>
+    <div class="m">ore per shaft: median ${fmt0(r.yield_q[2])} (${fmt0(r.yield_q[1])}–${fmt0(r.yield_q[3])})</div>
+    <div class="m">durability per shaft: ${fmt0(r.cost)}</div>`;
+  wordAxisChart(document.getElementById("calp"), rows, {
+    max: 1, top: r => r.p_any, tickFmt: "%", label: r => pct(r.p_any), tip: tipBase,
+    draw: (g, r, x, y, c) => g.append("path").attr("d", roundTop(x(r.w), y(r.p_any), x.bandwidth(), y(0) - y(r.p_any), 4)).attr("fill", c),
+  });
+  wordAxisChart(document.getElementById("caly"), rows, {
+    top: r => r.yield_q[3], label: r => fmt0(r.yield_q[2]), tip: tipBase,
+    draw: (g, r, x, y, c) => {
+      const cx = x(r.w) + x.bandwidth() / 2, bw = Math.min(18, x.bandwidth());
+      g.append("rect").attr("x", cx - bw / 2).attr("y", y(r.yield_q[3])).attr("width", bw).attr("height", Math.max(1, y(r.yield_q[1]) - y(r.yield_q[3]))).attr("rx", 4).attr("fill", c).attr("opacity", 0.45);
+      g.append("line").attr("x1", cx - bw / 2 - 4).attr("x2", cx + bw / 2 + 4).attr("y1", y(r.yield_q[2])).attr("y2", y(r.yield_q[2])).attr("stroke", c).attr("stroke-width", 3).attr("stroke-linecap", "round");
+    },
+  });
+}
+function roundTop(x, y, w, h, r) {
+  if (h <= 0) return "";
+  r = Math.min(r, h, w / 2);
+  return `M${x},${y + h}V${y + r}Q${x},${y} ${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h}Z`;
+}
+
+/* ---------- strategies ---------- */
+function renderStrategies() {
+  const P = D.per_ore[state.ore];
+  document.getElementById("strat-scope").textContent = state.word === "any" ? "all shafts" : `shafts with ${wordLabel(state.word)}`;
+  const bars = (el, metric, fmtv) => {
+    const rows = P.strategies.map(s => ({ s, v: stratValue(s, metric) })).filter(r => r.v != null).sort((a, b) => b.v - a.v);
+    const W = widthOf(el), m = { t: 4, r: 52, b: 26, l: 168 }, bh = 16, gap = 6, H = m.t + m.b + rows.length * (bh + gap);
+    const svg = svgIn(el, W, H), x = d3.scaleLinear().domain([0, d3.max(rows, r => r.v) || 1]).nice().range([m.l, W - m.r]);
+    svg.append("g").attr("class", "gridl").attr("transform", `translate(0,${H - m.b})`).call(d3.axisBottom(x).ticks(4).tickSize(-(H - m.t - m.b)).tickFormat(""));
+    svg.append("g").attr("class", "axis").attr("transform", `translate(0,${H - m.b})`).call(d3.axisBottom(x).ticks(4).tickSizeOuter(0));
+    rows.forEach((r, i) => {
+      const yy = m.t + i * (bh + gap), on = r.s.radius === state.radius;
+      const fill = on ? css("--s1") : css("--w0");
+      svg.append("path").attr("d", roundRight(m.l, yy, x(r.v) - m.l, bh, 4)).attr("fill", fill);
+      svg.append("text").attr("class", r.s.baseline ? "lbl-strong" : "lbl").attr("x", m.l - 8).attr("y", yy + bh / 2 + 4).attr("text-anchor", "end")
+        .text(r.s.label + (r.s.baseline ? " (you)" : ""));
+      if (on || r.s.baseline) svg.append("text").attr("class", "val").attr("x", x(r.v) + 6).attr("y", yy + bh / 2 + 4).text(fmtv(r.v));
+      svg.append("rect").attr("x", 0).attr("y", yy - gap / 2).attr("width", W).attr("height", bh + gap).attr("fill", "transparent")
+        .on("mousemove", ev => showTip(ev, `<div class="t">${r.s.label}</div><div class="m">${fmtv(r.v)} ${metric === "rate" ? "ore / 100 durability" : "deposits / 1,000 durability"}</div>`)).on("mouseleave", hideTip);
+    });
+  };
+  bars(document.getElementById("stratrate"), "rate", fmt1);
+  bars(document.getElementById("stratdep"), "dep", d3.format(",.2f"));
+
+  const rows = P.strategies.slice().sort((a, b) => b.rate - a.rate);
+  const words = WORD_KEYS.filter(w => rows[0].by_word[w]);
+  document.getElementById("strattable").innerHTML =
+    `<thead><tr><th>Strategy</th><th>Ore / 100 dur.</th><th>Deposits / 1k dur.</th><th>Durability / shaft</th>${words.map(w => `<th>${w}</th>`).join("")}</tr></thead><tbody>` +
+    rows.map(s => `<tr><td>${s.label}${s.baseline ? " (you)" : ""}</td><td>${fmt1(s.rate * 100)}</td><td>${d3.format(".2f")(s.dep_per_1k)}</td><td>${fmt0(s.cost)}</td>${words.map(w => `<td>${s.by_word[w] ? fmt1(s.by_word[w].rate * 100) : "–"}</td>`).join("")}</tr>`).join("") +
+    `</tbody>`;
+}
+function roundRight(x, y, w, h, r) {
+  if (w <= 0) return "";
+  r = Math.min(r, w, h / 2);
+  return `M${x},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h - r}Q${x + w},${y + h} ${x + w - r},${y + h}H${x}Z`;
+}
+
+/* ---------- curves ---------- */
+function renderCurves() {
+  const el = document.getElementById("curve"), W = widthOf(el), H = Math.min(420, Math.max(280, W * 0.45));
+  const C = D.per_ore[state.ore].curves, words = WORD_KEYS.filter(w => C[w]);
+  const m = { t: 12, r: 96, b: 40, l: 56 };
+  const svg = svgIn(el, W, H);
+  const x = d3.scaleLinear().domain([0, d3.max(words, w => d3.max(C[w].cost))]).nice().range([m.l, W - m.r]);
+  const y = d3.scaleLinear().domain([0, d3.max(words, w => d3.max(C[w].yield)) || 1]).nice().range([H - m.b, m.t]);
+  svg.append("g").attr("class", "gridl").attr("transform", `translate(${m.l},0)`).call(d3.axisLeft(y).ticks(5).tickSize(-(W - m.l - m.r)).tickFormat(""));
+  svg.append("g").attr("class", "axis").attr("transform", `translate(${m.l},0)`).call(d3.axisLeft(y).ticks(5).tickSizeOuter(0));
+  svg.append("g").attr("class", "axis").attr("transform", `translate(0,${H - m.b})`).call(d3.axisBottom(x).ticks(6).tickSizeOuter(0));
+  svg.append("text").attr("class", "lbl").attr("x", W - m.r).attr("y", H - 6).attr("text-anchor", "end").text("durability spent →");
+  svg.append("text").attr("class", "lbl").attr("x", m.l + 4).attr("y", m.t + 4).text("ore blocks mined");
+  const line = d3.line().x(d => x(d[0])).y(d => y(d[1]));
+  const ends = [];
+  words.forEach(w => {
+    const c = C[w], pts = c.cost.map((v, i) => [v, c.yield[i], c.depth[i], c.deposits[i]]);
+    const on = state.word === "any" || state.word === w, col = css(wordVar(w));
+    svg.append("path").attr("d", line(pts)).attr("fill", "none").attr("stroke", col).attr("stroke-width", on ? 2 : 1.5).attr("opacity", on ? 1 : 0.3).attr("stroke-linejoin", "round");
+    pts.filter(p => p[2] % 24 === 0).forEach(p => {
+      svg.append("circle").attr("cx", x(p[0])).attr("cy", y(p[1])).attr("r", on ? 4 : 3).attr("fill", col).attr("stroke", css("--surface")).attr("stroke-width", 2).attr("opacity", on ? 1 : 0.3);
+      svg.append("circle").attr("cx", x(p[0])).attr("cy", y(p[1])).attr("r", 12).attr("fill", "transparent")
+        .on("mousemove", ev => showTip(ev, `<div class="t">${w === "none" ? "No reading" : "“" + w + "”"}, ${p[2]} blocks down</div><div class="m">durability ${fmt0(p[0])}</div><div class="m">ore ${fmt0(p[1])} · deposits ${fmt1(p[3])}</div>`))
+        .on("mouseleave", hideTip);
+    });
+    const e = pts[pts.length - 1];
+    ends.push({ w, y: y(e[1]), x: x(e[0]), on });
+  });
+  ends.sort((a, b) => a.y - b.y);
+  for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 14) ends[i].y = ends[i - 1].y + 14;
+  ends.filter(e => e.on).forEach(e => svg.append("text").attr("class", "lbl").attr("x", W - m.r + 8).attr("y", e.y + 4).text(e.w === "none" ? "none" : e.w));
+  document.getElementById("curvelegend").innerHTML = words.map(w => `<span><i class="line" style="background:${css(wordVar(w))}"></i>${w === "none" ? "no reading" : w}</span>`).join("");
+}
+
+/* ---------- keep searching ---------- */
+function renderKeep() {
+  const P = D.per_ore[state.ore], K = P.keep;
+  const rows = WORD_KEYS.filter(w => w !== "none" && K[w] && K[w].continue_rate != null).map(w => ({ w, ...K[w] }));
+  const el = document.getElementById("keep"), W = widthOf(el), m = { t: 12, r: 16, b: 40, l: 48 }, H = 240;
+  const svg = svgIn(el, W, H);
+  const x = d3.scaleBand().domain(rows.map(r => r.w)).range([m.l, W - m.r]).padding(0.3);
+  const y = d3.scaleLinear().domain([0, d3.max(rows, r => Math.max(r.continue_rate, r.fresh_rate)) * 100 || 1]).nice().range([H - m.b, m.t]);
+  svg.append("g").attr("class", "gridl").attr("transform", `translate(${m.l},0)`).call(d3.axisLeft(y).ticks(4).tickSize(-(W - m.l - m.r)).tickFormat(""));
+  svg.append("g").attr("class", "axis").attr("transform", `translate(${m.l},0)`).call(d3.axisLeft(y).ticks(4).tickSizeOuter(0));
+  svg.append("g").attr("class", "axis").attr("transform", `translate(0,${H - m.b})`).call(d3.axisBottom(x).tickSizeOuter(0)).selectAll("text").attr("font-size", 11);
+  const c1 = css("--s1"), c2 = css("--s2"), ring = css("--surface");
+  rows.forEach(r => {
+    const cx = x(r.w) + x.bandwidth() / 2, on = state.word === "any" || state.word === r.w;
+    const g = svg.append("g").attr("opacity", on ? 1 : 0.35);
+    g.append("line").attr("x1", cx).attr("x2", cx).attr("y1", y(r.continue_rate * 100)).attr("y2", y(r.fresh_rate * 100)).attr("stroke", css("--axis")).attr("stroke-width", 2);
+    g.append("circle").attr("cx", cx).attr("cy", y(r.fresh_rate * 100)).attr("r", 6).attr("fill", c2).attr("stroke", ring).attr("stroke-width", 2);
+    g.append("circle").attr("cx", cx).attr("cy", y(r.continue_rate * 100)).attr("r", 6).attr("fill", c1).attr("stroke", ring).attr("stroke-width", 2);
+    svg.append("rect").attr("x", x(r.w) - 4).attr("y", m.t).attr("width", x.bandwidth() + 8).attr("height", H - m.t - m.b).attr("fill", "transparent")
+      .on("mousemove", ev => showTip(ev, `<div class="t">“${r.w}” · ${fmt0(r.n)} shafts with a deposit</div>
+        <div class="m">dig on: ${fmt1(r.continue_rate * 100)}</div><div class="m">new shaft: ${fmt1(r.fresh_rate * 100)}</div>
+        <div class="m">first deposit itself: ${fmt1(r.first_rate * 100)}</div><div class="m">more deposits per 1k dur. digging on: ${fmt1(r.continue_deposits_per_1k)}</div>`))
+      .on("mouseleave", hideTip);
+  });
+  document.getElementById("keeplegend").innerHTML = `<span><i style="background:${c1};border-radius:50%"></i>Keep digging down</span><span><i style="background:${c2};border-radius:50%"></i>New shaft, same reading</span>`;
+
+  const N = P.neighbours, el2 = document.getElementById("nbr");
+  if (!N) { el2.innerHTML = `<p class="loading">Too few deposits of this ore to measure.</p>`; document.getElementById("nbrlegend").innerHTML = ""; return; }
+  const W2 = widthOf(el2), H2 = 240, m2 = { t: 12, r: 16, b: 40, l: 48 };
+  const s2 = svgIn(el2, W2, H2);
+  const x2 = d3.scaleLinear().domain([0, d3.max(N.D)]).range([m2.l, W2 - m2.r]), y2 = d3.scaleLinear().domain([0, 1]).range([H2 - m2.b, m2.t]);
+  s2.append("g").attr("class", "gridl").attr("transform", `translate(${m2.l},0)`).call(d3.axisLeft(y2).ticks(4).tickSize(-(W2 - m2.l - m2.r)).tickFormat(""));
+  s2.append("g").attr("class", "axis").attr("transform", `translate(${m2.l},0)`).call(d3.axisLeft(y2).ticks(4, "%").tickSizeOuter(0));
+  s2.append("g").attr("class", "axis").attr("transform", `translate(0,${H2 - m2.b})`).call(d3.axisBottom(x2).ticks(6).tickSizeOuter(0));
+  s2.append("text").attr("class", "lbl").attr("x", W2 - m2.r).attr("y", H2 - 6).attr("text-anchor", "end").text("blocks away →");
+  const ln = d3.line().x((d, i) => x2(N.D[i])).y(d => y2(d));
+  [["from_deposit", c1, "From a deposit"], ["from_random", c2, "From a random spot"]].forEach(([k, c]) =>
+    s2.append("path").attr("d", ln(N[k])).attr("fill", "none").attr("stroke", c).attr("stroke-width", 2));
+  N.D.forEach((d, i) => s2.append("rect").attr("x", x2(d) - 6).attr("y", m2.t).attr("width", 12).attr("height", H2 - m2.t - m2.b).attr("fill", "transparent")
+    .on("mousemove", ev => showTip(ev, `<div class="t">Within ${d} blocks</div><div class="m">from a deposit: ${pct(N.from_deposit[i])}</div><div class="m">from a random spot: ${pct(N.from_random[i])}</div>`))
+    .on("mouseleave", hideTip));
+  document.getElementById("nbrlegend").innerHTML = `<span><i class="line" style="background:${c1}"></i>From a deposit</span><span><i class="line" style="background:${c2}"></i>From a random spot</span>`;
+}
+
+/* ---------- header & method ---------- */
+function renderStatic() {
+  const m = D.meta, t = D.totals;
+  document.getElementById("dataset").innerHTML = [
+    ["Seed", m.seed], ["Area", `${t.area}×${t.area} blocks`], ["Deposit rate", `${Math.round(+m.worldConfig.globalDepositSpawnRate * 100)}%`],
+    ["Ore blocks", fmt0(t.blocks)], ["Deposits (5+ blocks)", fmt0(t.deposits)], ["Shafts per strategy", fmt0(t.shafts)], ["Game", m.gameVersion]
+  ].map(([k, v]) => `<span>${k} <b>${v}</b></span>`).join("");
+  const md = D.model;
+  document.getElementById("method").innerHTML = [
+    `One world so far: seed ${m.seed}, “${m.playstyle}” settings, default deposit rate, the ${t.area}×${t.area} blocks around the map centre. More seeds and deposit rates are next; treat small differences here as noise until then.`,
+    `Every ore block and every deposit placement was recorded by a server mod while the world generated. Density readings are the prospecting pick's own code, run every 4 blocks. Ore bodies are ore blocks of one type that touch, including diagonally (the same type key the node search groups by).`,
+    `Shafts are single vertical lines from the surface to bedrock, placed every ${md.shaft_spacing} blocks across the map. A node search counts every ore block in the cube around the probe, as the game does.`,
+    `Durability is one number: 1 per block broken (cave air is free), 2 per node search, plus ${md.localise_cost} each time a probe triggers a chase (extra probes to find direction).`,
+    `Chasing a detected body costs a 2-high tunnel to its nearest block (2 per sideways step, 1 per step up or down), then 1 per ore block plus the rock for a 1×2 walkway that keeps every ore block within ${md.reach} blocks of reach. The simulated player finds the direction without wasted digging, so real play will cost somewhat more.`,
+    `Yield is ore blocks of the selected ore only; other ores met along the way are ignored. Reading words follow the game (×7.5 of the reading, shown above 0.025); “very high” and “ultra high” are merged because both are rare.`,
+  ].map(s => `<li>${s}</li>`).join("");
+}
+
+function renderAll() {
+  renderTiles(); renderMap(); renderDepth(); renderShapes(); renderCalibration(); renderStrategies(); renderCurves(); renderKeep();
+}
+
+fetch("data.json").then(r => r.json()).then(data => {
+  D = data;
+  buildFilters(); renderStatic(); renderAll();
+  const box = document.getElementById("mapbox");
+  box.addEventListener("mousemove", mapHover);
+  document.getElementById("showbodies").onchange = drawDots;
+  let t = null;
+  new ResizeObserver(() => { clearTimeout(t); t = setTimeout(() => { if (D) renderAll(); }, 120); }).observe(document.querySelector(".wrap"));
+  const rerender = () => D && renderAll();
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", rerender);
+  new MutationObserver(rerender).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+}).catch(err => {
+  document.getElementById("dataset").innerHTML = `<span>Could not load the survey data (${err.message}). Reload the page to try again.</span>`;
+});
+</script>

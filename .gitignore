@@ -6,3 +6,5 @@ obj/
 __pycache__/
 .venv/
 uv.lock.bak
+report/data.json
+report/data_*.json
