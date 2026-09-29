@@ -31,6 +31,13 @@ and 49,152 simulated shafts per strategy.
 simulation used exact counts, so its direction-finding results are somewhat optimistic. Edge search is unaffected.
 See the open items in [PLAN.md](PLAN.md).
 
+## Gold and silver
+
+Gold and silver are nuggets inside thin quartz slabs, and the pick can only say "trace". Best starts: a loose nugget on the
+ground, then a loose quartz stone where a reading says "Miniscule amounts of" gold or silver. Yields are 2 to 9 ore blocks
+per 100 durability (copper: 26). Needs a tier-3 pickaxe. See [report/goldsilver.html](report/goldsilver.html)
+(self-contained; rebuild data with `analysis/gs_cache.py`, `analysis/goldsilver.py`, then `goldsilver.py --embed`).
+
 ## Where things are
 
 ### The analysis

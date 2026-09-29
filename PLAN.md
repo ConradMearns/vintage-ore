@@ -131,6 +131,15 @@ overlaid with true deposit locations.
       "any ore or none" and is unaffected.
 - [ ] In-game helper (edge search + climb + spacing as a checklist/calculator)
 
+## 5. Gold and silver (quartz children)
+- Children replace the parent's placed quartz blocks (`DiscDepositGenerator` ~l.138), so nuggets sit inside the slab.
+  Slabs: any depth, ~1 block thick, ~60 wide; nuggets in clusters of ~4.6; top 10% of slabs hold 80-88%.
+- Node search says "trace" for everything (clusters <10), so only presence is usable. Readings never reach density words;
+  "Miniscule" (>=0.002) flags 5-7x richer ground; readings are noisy, compass climbing does not help.
+- Quartz and both ores need mining tier 3. Silver-in-galena is essentially absent.
+- Simulator `analysis/goldminer.py`, study `analysis/goldsilver.py`, report `report/goldsilver.html`.
+- [ ] Better localisation from yes/no probes (perfect aim would be 1.5-1.7x), node radius 8, deposit-rate sweep.
+
 ## Usage
 ```
 dotnet build -c Release mod/OreSurvey
